@@ -1,5 +1,4 @@
 import os
-import re
 from dotenv import load_dotenv
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from flask import Flask, request, jsonify
@@ -19,6 +18,28 @@ if not hf_token:
 login(token=hf_token)
 
 app = Flask(__name__)
+
+# Card Payment Form (Fake Decline)
+CARD_FORM_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Payment Form</title>
+</head>
+<body>
+    <h2>Enter Card Details</h2>
+    <form action="/process-card" method="post">
+        <label>Card Number:</label>
+        <input type="text" name="card_number" required><br><br>
+        <label>Expiry Date:</label>
+        <input type="text" name="expiry_date" required><br><br>
+        <label>CVV:</label>
+        <input type="text" name="cvv" required><br><br>
+        <button type="submit">Submit</button>
+    </form>
+</body>
+</html>
+"""
 
 # Load the chatbot model
 base_model_id = "Qwen/Qwen2.5-1.5B-Instruct"
@@ -76,13 +97,9 @@ def chat():
 
     generated_text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
     
-    # Extract only the response after "## Response:"
-    match = re.search(r"## Response:\s*(.*)", generated_text, re.DOTALL)
-    cleaned_response = match.group(1).strip() if match else generated_text  # Remove extra spaces
-    
-    print(f"Generated Text: {cleaned_response}")  # Debugging print
+    print(f"Generated Text: {generated_text}")  # Debugging print
 
-    return jsonify({"response": cleaned_response, "is_medical": is_medical_query(prompt)})
+    return jsonify({"response": generated_text, "is_medical": is_medical_query(prompt)})
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
