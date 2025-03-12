@@ -1,4 +1,5 @@
 import os
+import time
 from dotenv import load_dotenv
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from flask import Flask, request, jsonify
@@ -21,21 +22,28 @@ app = Flask(__name__)
 
 # Load the chatbot model
 base_model_id = "Qwen/Qwen2.5-1.5B-Instruct"
-device = "cuda" if torch.cuda.is_available() else "cpu"
-torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+device = "cpu"  # Force CPU mode
+
+# Optimize CPU performance
+torch.set_num_threads(4)  # Allow multithreading
+torch.backends.mkldnn.enabled = True  # Enable MKL optimizations
 
 print(f"Loading model: {base_model_id} on {device}...")  # Debugging print
 
+# Load model without bitsandbytes quantization
 model = AutoModelForCausalLM.from_pretrained(
     base_model_id,
-    device_map="auto",
-    torch_dtype=torch_dtype,
-    token=hf_token  # Use the token for authenticated access
+    torch_dtype=torch.float32,  # Use float32 for CPU
+    device_map="cpu",  # Use simple device map
+    low_cpu_mem_usage=True,  # Reduce memory footprint
+    trust_remote_code=True  # Ensure full model download
 )
-tokenizer = AutoTokenizer.from_pretrained(base_model_id, token=hf_token)
 
-# Load the zero-shot classification model
-medical_nlp = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", token=hf_token)
+# Load tokenizer
+tokenizer = AutoTokenizer.from_pretrained(base_model_id)
+
+# Load zero-shot classification model
+medical_nlp = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
 def is_medical_query(query):
     candidate_labels = ["medical", "non-medical"]
@@ -46,7 +54,7 @@ def is_medical_query(query):
 def chat():
     data = request.json
     prompt = data.get("message", "")
-    
+
     if not prompt:
         return jsonify({"error": "Message is required"}), 400
 
@@ -56,26 +64,26 @@ def chat():
     ]
 
     text = tokenizer.apply_chat_template(normal_response, tokenize=False, add_generation_prompt=True)
-    
-    # Tokenization with attention mask
-    model_inputs = tokenizer([text], return_tensors="pt", padding=True).to(device)
-    
-    print(f"Model Inputs: {model_inputs}")  # Debugging print
 
-    # Generation without sampling parameters (deterministic output)
+    # Tokenization with optimized parameters
+    start_time = time.time()
+    model_inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512).to(device)
+    print(f"Tokenization Time: {time.time() - start_time:.2f}s")
+
+    # Generation with optimized parameters
+    start_time = time.time()
     generated_ids = model.generate(
         model_inputs["input_ids"],
         attention_mask=model_inputs["attention_mask"],
-        max_new_tokens=256,
-        do_sample=False,
-        temperature=None,
-        top_p=None,
-        top_k=None
+        max_new_tokens=128,  # Reduced for faster response
+        do_sample=True,  # Enable sampling for faster inference
+        temperature=0.7,
+        top_p=0.9,
+        top_k=50
     )
+    print(f"Generation Time: {time.time() - start_time:.2f}s")
 
     generated_text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-    
-    print(f"Generated Text: {generated_text}")  # Debugging print
 
     return jsonify({"response": generated_text, "is_medical": is_medical_query(prompt)})
 
