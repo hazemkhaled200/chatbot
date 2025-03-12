@@ -1,10 +1,10 @@
 import os
 import time
-from dotenv import load_dotenv
+from dotenv import load_dotenv # type: ignore
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-from flask import Flask, request, jsonify
-import torch
-from huggingface_hub import login
+from flask import Flask, request, jsonify # type: ignore
+import torch # type: ignore
+from huggingface_hub import login # type: ignore
 
 # Load environment variables from .env file
 load_dotenv()
