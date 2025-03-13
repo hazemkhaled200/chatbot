@@ -1,19 +1,19 @@
 import os
 import time
-from dotenv import load_dotenv # type: ignore
+from dotenv import load_dotenv
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-from flask import Flask, request, jsonify # type: ignore
-import torch # type: ignore
-from huggingface_hub import login # type: ignore
+from flask import Flask, request, jsonify
+import torch
+from huggingface_hub import login
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Get Hugging Face API token from environment
+# Get Hugging Face API token from environment secret
 hf_token = os.getenv("HUGGINGFACE_TOKEN")
 
 if not hf_token:
-    raise ValueError("HUGGINGFACE_TOKEN is not set in the .env file")
+    raise ValueError("HUGGINGFACE_TOKEN is not set in the environment")
 
 # Login to Hugging Face Hub
 login(token=hf_token)
@@ -28,18 +28,21 @@ device = "cpu"  # Force CPU mode
 torch.set_num_threads(4)  # Allow multithreading
 torch.backends.mkldnn.enabled = True  # Enable MKL optimizations
 
-print(f"Loading model: {base_model_id} on {device}...")  # Debugging print
+def load_model():
+    print(f"Loading model: {base_model_id} on {device}...")  # Debugging print
 
-# Load model without bitsandbytes quantization
-model = AutoModelForCausalLM.from_pretrained(
-    base_model_id,
-    torch_dtype=torch.float32,  # Use float32 for CPU
-    device_map="cpu",  # Use simple device map
-    low_cpu_mem_usage=True,  # Reduce memory footprint
-    trust_remote_code=True  # Ensure full model download
-)
+    model = AutoModelForCausalLM.from_pretrained(
+        base_model_id,
+        torch_dtype=torch.float32,  # Use float32 for CPU
+        device_map="cpu",  # Use simple device map
+        low_cpu_mem_usage=True,  # Reduce memory footprint
+        trust_remote_code=True  # Ensure full model download
+    )
 
-# Load tokenizer
+    return model  # Removed torch.compile() for Windows compatibility
+
+# Load model and tokenizer
+model = load_model()
 tokenizer = AutoTokenizer.from_pretrained(base_model_id)
 
 # Load zero-shot classification model
@@ -66,12 +69,9 @@ def chat():
     text = tokenizer.apply_chat_template(normal_response, tokenize=False, add_generation_prompt=True)
 
     # Tokenization with optimized parameters
-    start_time = time.time()
     model_inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512).to(device)
-    print(f"Tokenization Time: {time.time() - start_time:.2f}s")
 
     # Generation with optimized parameters
-    start_time = time.time()
     generated_ids = model.generate(
         model_inputs["input_ids"],
         attention_mask=model_inputs["attention_mask"],
@@ -81,7 +81,6 @@ def chat():
         top_p=0.9,
         top_k=50
     )
-    print(f"Generation Time: {time.time() - start_time:.2f}s")
 
     generated_text = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
