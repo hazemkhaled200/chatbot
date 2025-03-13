@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify # type: ignore
 import torch # type: ignore
 from huggingface_hub import login # type: ignore
 
-# Load environment variables from .env file
+# Load environment variables from .env file.
 load_dotenv()
 
 # Get Hugging Face API token from environment secret
