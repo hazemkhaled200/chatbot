@@ -2,7 +2,7 @@ import os
 import time
 from dotenv import load_dotenv # type: ignore
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-from flask import Flask, request, jsonify # type: ignore
+from flask import Flask, request, jsonify # type: ignore 
 import torch # type: ignore
 from huggingface_hub import login # type: ignore
 
@@ -31,16 +31,14 @@ device = get_device()
 # Optimize CPU performance if running on CPU
 if device == "cpu":
     torch.set_num_threads(4)  # Allow multithreading
-    torch.backends.mkldnn.enabled = True  # Enable MKL optimizations
 
 def load_model():
     print(f"Loading model: {base_model_id} on {device}...")  # Debugging print
 
     model = AutoModelForCausalLM.from_pretrained(
         base_model_id,
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,  # Use float16 for GPU, float32 for CPU
-        device_map=device,  # Automatically map model to available device
-        low_cpu_mem_usage=True,  # Reduce memory footprint
+        torch_dtype=torch.float16 if device == "cuda" else torch.float32,  
+        device_map=device,  
         trust_remote_code=True  # Ensure full model download
     )
 
@@ -81,7 +79,7 @@ def chat():
         model_inputs["input_ids"],
         attention_mask=model_inputs["attention_mask"],
         max_new_tokens=128,  # Reduced for faster response
-        do_sample=True,  # Enable sampling for faster inference
+        do_sample=True,
         temperature=0.7,
         top_p=0.9,
         top_k=50
@@ -92,4 +90,5 @@ def chat():
     return jsonify({"response": generated_text, "is_medical": is_medical_query(prompt)})
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.getenv("PORT", 5000))  # Use Railway-assigned port
+    app.run(host="0.0.0.0", port=port)
