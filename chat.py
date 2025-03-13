@@ -22,24 +22,29 @@ app = Flask(__name__)
 
 # Load the chatbot model
 base_model_id = "Qwen/Qwen2.5-1.5B-Instruct"
-device = "cpu"  # Force CPU mode
 
-# Optimize CPU performance
-torch.set_num_threads(4)  # Allow multithreading
-torch.backends.mkldnn.enabled = True  # Enable MKL optimizations
+def get_device():
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+device = get_device()
+
+# Optimize CPU performance if running on CPU
+if device == "cpu":
+    torch.set_num_threads(4)  # Allow multithreading
+    torch.backends.mkldnn.enabled = True  # Enable MKL optimizations
 
 def load_model():
     print(f"Loading model: {base_model_id} on {device}...")  # Debugging print
 
     model = AutoModelForCausalLM.from_pretrained(
         base_model_id,
-        torch_dtype=torch.float32,  # Use float32 for CPU
-        device_map="cpu",  # Use simple device map
+        torch_dtype=torch.float16 if device == "cuda" else torch.float32,  # Use float16 for GPU, float32 for CPU
+        device_map=device,  # Automatically map model to available device
         low_cpu_mem_usage=True,  # Reduce memory footprint
         trust_remote_code=True  # Ensure full model download
     )
 
-    return model  # Removed torch.compile() for Windows compatibility
+    return model
 
 # Load model and tokenizer
 model = load_model()
