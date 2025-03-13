@@ -4,7 +4,7 @@ from dotenv import load_dotenv # type: ignore
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from flask import Flask, request, jsonify # type: ignore 
 import torch # type: ignore
-from huggingface_hub import login # type: ignore.
+from huggingface_hub import login # type: ignore
 
 # Load environment variables from .env file
 load_dotenv()
@@ -91,4 +91,5 @@ def chat():
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))  # Use Railway-assigned port
-    app.run(host="0.0.0.0", port=port)
+    print(f"🚀 Running on port: {port}")  # Debug print
+    app.run(host="0.0.0.0", port=int(port))
